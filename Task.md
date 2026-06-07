@@ -10,21 +10,29 @@ Component Diagram відображає основні елементи сист�
 
 ```mermaid
 graph TD
-    Client[Client Web/Mobile] --> API[Backend API]
-    API --> MsgService[Message Service]
-    MsgService --> DB[(Database)]
-    MsgService --> FanOut[Fan-out / Queue Service]
-    FanOut --> Delivery[WebSocket / Push Service]
-    Delivery --> ClientB[Recipient User B]
-    Delivery --> ClientC[Recipient User C]
+    Client["Client Web/Mobile"] --> API["Backend API"]
+    API --> MsgService["Message Service"]
+    MsgService --> DB[("Database")]
+    MsgService --> FanOut["Fan-out / Queue Service"]
+    FanOut --> Delivery["WebSocket / Push Service"]
+    Delivery --> ClientB["Recipient User B"]
+    Delivery --> ClientC["Recipient User C"]
+```
 
+---
+
+## 🔁 Part 2 — Sequence Diagram
+
+Сценарій: Користувач А відправляє повідомлення в груповий чат. Користувач Б наразі офлайн, а Користувач В — онлайн.
+
+```mermaid
 sequenceDiagram
-    participant UserA as Користувач А (Онлайн)
-    participant API as Backend API
-    participant DB as Database
-    participant Queue as Fan-out / Queue
-    participant UserB as Користувач Б (Офлайн)
-    participant UserC as Користувач В (Онлайн)
+    participant UserA as "Користувач А (Онлайн)"
+    participant API as "Backend API"
+    participant DB as "Database"
+    participant Queue as "Fan-out / Queue"
+    participant UserB as "Користувач Б (Офлайн)"
+    participant UserC as "Користувач В (Онлайн)"
 
     UserA->>API: Відправка повідомлення в Групу
     API->>DB: Збереження тексту
@@ -36,38 +44,48 @@ sequenceDiagram
     
     Queue->>DB: Статус Б -> Sent в чергу
     Note over Queue, UserB: Очікування мережі
+```
 
+---
+
+## 🔄 Part 3 — State Diagram
+
+Статус повідомлення (Sent / Delivered / Read) відстежується індивідуально для кожного учасника.
+
+```mermaid
 stateDiagram-v2
-    [*] --> Created : Повідомлення створено
-    Created --> SentToBackend : Надіслано на сервер
+    [*] --> Created : "Повідомлення створено"
+    Created --> SentToBackend : "Надіслано на сервер"
 
-    state PerUser {
-        [*] --> Sent : В черзі
-        Sent --> Delivered : Доставлено
-        Delivered --> Read : Прочитано
+    state "Статуси для отримувача" as PerUser {
+        [*] --> Sent : "В черзі"
+        Sent --> Delivered : "Доставлено"
+        Delivered --> Read : "Прочитано"
     }
 
     SentToBackend --> PerUser
     Read --> [*]
+```
 
-📚 Part 4 — Architecture Decision Record (ADR)
-# ADR-001: Use Fan-out on Write for Group Chat Architecture
-Status
+---
+
+## 📚 Part 4 — Architecture Decision Record (ADR)
+
+### # ADR-001: Use Fan-out on Write for Group Chat Architecture
+
+**Status**
 Accepted
 
-Context
+**Context**
 У системі месенджера реалізуються групові чати. Повідомлення, надіслане в групу, має миттєво доставлятися багатьом користувачам одночасно. При цьому, відповідно до вимог варіанта, статус доставки (Sent/Delivered/Read) повинен відстежуватися для кожного учасника групи індивідуально.
 
-Decision
+**Decision**
 Ми приймаємо рішення використовувати підхід Fan-out on Write із залученням брокера повідомлень (Message Queue). Коли повідомлення надходить на бекенд, сервіс розгалуження (Fan-out) запитує список учасників групи та створює персональну задачу доставки в чергу кожного користувача.
 
-Alternatives
+**Alternatives**
 Fan-out on Read: Клієнти самостійно опитують (polling) базу даних на наявність нових повідомлень у групі. (Відхилено через створення критичного навантаження на читання БД при великій кількості користувачів).
 
-Consequences
-
-Performance: Повідомлення з'являються у користувачів онлайн із мінімальною затримкою.
-
-Ізоляція статусів: Зручно відстежувати індивідуальні статуси (Delivered/Read) у персональних чергах.
-
-Storage Overhead: Потребує більше оперативної пам'яті в момент відправки повідомлення у великі групи.
+**Consequences**
++ Performance: Повідомлення з'являються у користувачів онлайн із мінімальною затримкою.
++ Ізоляція статусів: Зручно відстежувати індивідуальні статуси (Delivered/Read) у персональних чергах.
+- Storage Overhead: Потребує більше оперативної пам'яті в момент відправки повідомлення у великі групи.
