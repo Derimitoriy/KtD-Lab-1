@@ -1,4 +1,5 @@
 # Laboratory Work 1: Designing a Messaging System
+
 **Variant:** Variant 4 — Group Chat (Focus: scaling delivery logic)
 
 ---
@@ -9,45 +10,41 @@ Component Diagram відображає основні елементи сист�
 
 ```mermaid
 graph TD
-    Client["Client: Web / Mobile"] -->|"1. Send Group Msg"| API["Backend API"]
-    API -->|"2. Authorize & Save"| MsgService["Message Service"]
-    MsgService -->|"3. Persist Msg & Group Metadata"| DB[("Database")]
-    MsgService -->|"4. Trigger Fan-out"| FanOut["Fan-out / Queue Service"]
-    FanOut -->|"5. Push to Active Users"| Delivery["WebSocket / Push Service"]
-    Delivery -->|"6. Deliver"| ClientB["Recipient User B"]
-    Delivery -->|"7. Deliver"| ClientC["Recipient User C"]
+    Client[Client Web/Mobile] --> API[Backend API]
+    API --> MsgService[Message Service]
+    MsgService --> DB[(Database)]
+    MsgService --> FanOut[Fan-out / Queue Service]
+    FanOut --> Delivery[WebSocket / Push Service]
+    Delivery --> ClientB[Recipient User B]
+    Delivery --> ClientC[Recipient User C]
 
 sequenceDiagram
-    autonumber
-    actor UserA as "Користувач А (Онлайн)"
-    participant API as "Backend API / Msg Service"
-    participant DB as "Database"
-    participant Queue as "Fan-out / Queue"
-    actor UserB as "Користувач Б (Офлайн)"
-    actor UserC as "Користувач В (Онлайн)"
+    participant UserA as Користувач А (Онлайн)
+    participant API as Backend API
+    participant DB as Database
+    participant Queue as Fan-out / Queue
+    participant UserB as Користувач Б (Офлайн)
+    participant UserC as Користувач В (Онлайн)
 
-    UserA->>API: Відправка повідомлення в Групу Х
-    Note over API: Перевірка, чи А є в цій групі
-    API->>DB: Збереження тексту повідомлення
-    API->>Queue: Ініціація Fan-out для учасників (Б і В)
+    UserA->>API: Відправка повідомлення в Групу
+    API->>DB: Збереження тексту
+    API->>Queue: Ініціація Fan-out
     
-    par Для Користувача В (Онлайн)
-        Queue->>UserC: Доставка через WebSocket
-        UserC-->>API: Підтвердження отримання (Ack)
-        API->>DB: Оновлення статусу В -> Delivered
-    and Для Користувача Б (Офлайн)
-        Queue->>DB: Збереження статусу Б -> Sent (в чергу)
-        Note over Queue, UserB: Очікування, поки Б з'явиться в мережі
-    end
+    Queue->>UserC: Доставка через WebSocket
+    UserC-->>API: Підтвердження
+    API->>DB: Статус В -> Delivered
+    
+    Queue->>DB: Статус Б -> Sent в чергу
+    Note over Queue, UserB: Очікування мережі
 
 stateDiagram-v2
-    [*] --> Created : "Повідомлення створено"
-    Created --> SentToBackend : "Надіслано на сервер"
+    [*] --> Created : Повідомлення створено
+    Created --> SentToBackend : Надіслано на сервер
 
-    state "Статуси для конкретного отримувача" as PerUser {
-        [*] --> Sent : "Збережено в базі/черзі"
-        Sent --> Delivered : "Доставлено на пристрій"
-        Delivered --> Read : "Прочитано користувачем"
+    state PerUser {
+        [*] --> Sent : В черзі
+        Sent --> Delivered : Доставлено
+        Delivered --> Read : Прочитано
     }
 
     SentToBackend --> PerUser
@@ -68,8 +65,9 @@ Alternatives
 Fan-out on Read: Клієнти самостійно опитують (polling) базу даних на наявність нових повідомлень у групі. (Відхилено через створення критичного навантаження на читання БД при великій кількості користувачів).
 
 Consequences
-+ Performance: Повідомлення з'являються у користувачів онлайн із мінімальною затримкою.
 
-+ Ізоляція статусів: Зручно відстежувати індивідуальні статуси (Delivered/Read) у персональних чергах.
+Performance: Повідомлення з'являються у користувачів онлайн із мінімальною затримкою.
 
-- Storage Overhead: Потребує більше оперативної пам'яті в момент відправки повідомлення у великі групи.
+Ізоляція статусів: Зручно відстежувати індивідуальні статуси (Delivered/Read) у персональних чергах.
+
+Storage Overhead: Потребує більше оперативної пам'яті в момент відправки повідомлення у великі групи.
